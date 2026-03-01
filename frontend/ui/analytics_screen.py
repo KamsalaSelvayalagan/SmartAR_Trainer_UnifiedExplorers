@@ -435,7 +435,7 @@ class AnalyticsScreen(QWidget):
         self.insight_label.setStyleSheet("color: #e2e8f0; padding: 10px;")
         content_layout.addWidget(self.insight_label)
         # ✅ No-data message (shown when trainee has 0 sessions)
-        self.no_data_label = QLabel("Complete your first workout session to see charts and analytics.")
+        self.no_data_label = QLabel("Complete your first three workout sessions to see charts and analytics.")
         self.no_data_label.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
         self.no_data_label.setStyleSheet("color: #fbbf24; padding: 10px;")
         self.no_data_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
