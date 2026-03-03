@@ -51,6 +51,11 @@ class UnityEmbedder(QObject):
         self.resize_timer = QTimer()
         self.resize_timer.timeout.connect(self._on_resize_timer)
         self.resize_timer.setInterval(200)
+        
+        # Process monitor timer - detects when Unity closes externally
+        self.process_monitor_timer = QTimer()
+        self.process_monitor_timer.timeout.connect(self._check_process_alive)
+        self.process_monitor_timer.setInterval(500)  # Check every 500ms
     
     def start(self) -> bool:
         """
@@ -83,6 +88,9 @@ class UnityEmbedder(QObject):
             thread = threading.Thread(target=self._find_and_embed, daemon=True)
             thread.start()
             
+            # Start monitoring process to detect external closure
+            self.process_monitor_timer.start()
+            
             return True
             
         except Exception as e:
@@ -99,6 +107,7 @@ class UnityEmbedder(QObject):
         
         try:
             self.resize_timer.stop()
+            self.process_monitor_timer.stop()
             
             # Terminate process
             if self.process is not None:
@@ -308,3 +317,19 @@ class UnityEmbedder(QObject):
             return
         
         self._resize_unity_window()
+
+    def _check_process_alive(self):
+        """Periodically check if the process is still alive"""
+        if not self.is_running or self.process is None:
+            return
+        
+        # Check if process has terminated
+        if self.process.poll() is not None:
+            # Process has ended - emit stopped signal
+            print("UnityEmbedder: Detected external process termination")
+            self.process_monitor_timer.stop()
+            self.resize_timer.stop()
+            self.unity_hwnd = None
+            self.is_running = False
+            self.stopped.emit()
+            print("UnityEmbedder: Stopped (external closure detected)")
