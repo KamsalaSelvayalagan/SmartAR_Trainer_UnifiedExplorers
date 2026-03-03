@@ -38,7 +38,8 @@ class WorkoutDemo(QWidget):
         self.current_workout_name = None
         self.camera_permission_granted = False
         self.movie = None
-        self.workout_completed = False  # Track if Unity workout was completed
+        self.workout_completed_status = {}  # Track completion status per workout ID
+        self.previous_screen = None  # Track which screen we came from
         
         # Unity embedder for Plank workout
         self.unity_embedder = None
@@ -203,7 +204,7 @@ class WorkoutDemo(QWidget):
             self.video_widget.setVisible(False)
 
     # ==================================================
-    # Unity Embedding (for Plank and Jumping Jack workouts)
+    # Unity Embedding (for Plank, Jumping Jack, Push Ups, and Crunches workouts)
     # ==================================================
     def _get_unity_exe_path(self, workout_name: str) -> str:
         """Get path to the appropriate Unity EXE based on workout type"""
@@ -214,6 +215,12 @@ class WorkoutDemo(QWidget):
         if "jumping" in workout_lower and "jack" in workout_lower:
             # Jumping Jack workout uses JumpingJack.exe
             return os.path.join(app_root, "JumpingJack_AR_EXE", "JumpingJack.exe")
+        elif "push" in workout_lower and "up" in workout_lower:
+            # Push Ups workout uses Pushup.exe
+            return os.path.join(app_root, "PUSHUP_AR_EXE", "Pushup.exe")
+        elif "crunch" in workout_lower:
+            # Crunches workout uses Crunches.exe
+            return os.path.join(app_root, "Crunches_AR_EXE", "Crunches.exe")
         elif "plank" in workout_lower:
             # Plank workout uses PoseToAvatar.exe
             return os.path.join(app_root, "UnityBuild", "PoseToAvatar.exe")
@@ -273,13 +280,14 @@ class WorkoutDemo(QWidget):
         print("WorkoutDemo: Unity app started and embedded")
     
     def _on_unity_stopped(self):
-        """Called when Unity stops - stop music and show Next Workout button"""
+        """Called when Unity stops - stop music and show Next Workout + Start buttons"""
         print("WorkoutDemo: Unity app stopped")
         self._stop_music()
-        # Mark workout as completed
-        self.workout_completed = True
-        # Hide start button and show next workout button
-        self.start_btn.hide()
+        # Mark this specific workout as completed
+        if self.current_workout_id is not None:
+            self.workout_completed_status[self.current_workout_id] = True
+        # Show both buttons: Start (to repeat) and Next (to go to next workout)
+        self.start_btn.show()
         self.next_btn.show()
     
     def _on_unity_error(self, error_msg: str):
@@ -639,7 +647,7 @@ class WorkoutDemo(QWidget):
                                        stop:0 #059669, stop:1 #047857);
             }
         """)
-        self.next_btn.clicked.connect(self.go_back)
+        self.next_btn.clicked.connect(self.load_next_workout)
         self.next_btn.hide()  # Hidden by default
 
         button_layout.addStretch()
@@ -691,10 +699,17 @@ class WorkoutDemo(QWidget):
         self.muscles_label.setText(workout_name)
         self.instructions_text.setText(description or "No instructions available.")
 
-        # Reset button visibility and workout status when loading a new workout
-        self.workout_completed = False
+        # Check if this workout was previously completed
+        is_completed = self.workout_completed_status.get(workout_id, False)
+        
+        # Show Start button always
         self.start_btn.show()
-        self.next_btn.hide()
+        
+        # Show Next button only if workout was previously completed
+        if is_completed:
+            self.next_btn.show()
+        else:
+            self.next_btn.hide()
 
         self.preview_asset(workout_name)
 
@@ -883,14 +898,16 @@ class WorkoutDemo(QWidget):
         # pause preview BEFORE permission dialog
         self._pause_preview()
 
-        # Check if this is a Unity-based workout (Plank or Jumping Jack)
+        # Check if this is a Unity-based workout (Plank, Jumping Jack, Push Ups, or Crunches)
         workout_lower = (self.current_workout_name.strip().lower() 
                         if self.current_workout_name else "")
         
         is_plank = "plank" in workout_lower
         is_jumping_jack = "jumping" in workout_lower and "jack" in workout_lower
+        is_push_ups = "push" in workout_lower and "up" in workout_lower
+        is_crunches = "crunch" in workout_lower
         
-        if is_plank or is_jumping_jack:
+        if is_plank or is_jumping_jack or is_push_ups or is_crunches:
             # For Unity-based workouts: launch Unity app directly
             if self._launch_unity():
                 print(f"{self.current_workout_name} workout started with Unity")
@@ -898,12 +915,52 @@ class WorkoutDemo(QWidget):
                 self.show_dialog("Error", f"Failed to launch Unity for {self.current_workout_name} workout")
         else:
             # For other workouts: show coming soon message
-            self.show_dialog("Coming Soon", "Camera-based workouts coming soon!\nFor now, only Plank and Jumping Jack with Unity are available.")
+            self.show_dialog("Coming Soon", "Camera-based workouts coming soon!\nFor now, Plank, Jumping Jack, Push Ups, and Crunches have Unity support.")
+
+    def load_next_workout(self):
+        """Load the next workout in the sequence"""
+        if self.current_workout_id is None:
+            self.go_back()
+            return
+        
+        # Workout IDs go from 1 to 6
+        next_workout_id = self.current_workout_id + 1
+        
+        if next_workout_id > 6:
+            # All workouts completed - go back to selection
+            self.show_dialog("Completed!", "You have completed all workouts!")
+            self.go_back()
+            return
+        
+        # Mark that the next screen came from a demo
+        self.previous_screen = "demo"
+        # Load the next workout
+        self.load_workout(next_workout_id)
+    
+    def load_previous_workout(self):
+        """Go back to the previous workout in the sequence"""
+        if self.current_workout_id is None or self.current_workout_id <= 1:
+            # No previous workout, go back to main screen
+            self.previous_screen = None
+            self.go_back()
+            return
+        
+        prev_workout_id = self.current_workout_id - 1
+        self.load_workout(prev_workout_id)
 
     def go_back(self):
         self._pause_preview()
         self.stop_preview()
 
         main_win = self.window()
-        if hasattr(main_win, "back_from_workout_demo"):
+        
+        # If we came from another demo screen (via Next Workout), go back to that demo
+        if self.previous_screen == "demo":
+            self.load_previous_workout()
+        elif hasattr(main_win, "back_from_workout_demo"):
+            # Default: go back to workout screen
             main_win.back_from_workout_demo()
+    
+    def set_previous_screen(self, screen_name: str):
+        """Set the screen we came from (used for back button navigation)"""
+        self.previous_screen = screen_name
