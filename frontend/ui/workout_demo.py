@@ -38,6 +38,7 @@ class WorkoutDemo(QWidget):
         self.current_workout_name = None
         self.camera_permission_granted = False
         self.movie = None
+        self.workout_completed = False  # Track if Unity workout was completed
         
         # Unity embedder for Plank workout
         self.unity_embedder = None
@@ -252,8 +253,7 @@ class WorkoutDemo(QWidget):
         if not self._init_unity_embedder(exe_path):
             return False
         
-        # Hide demo UI and launch Unity
-        self.demo_container.setVisible(False)
+        # Pause preview video
         self._pause_preview()
         
         if self.unity_embedder.start():
@@ -267,7 +267,6 @@ class WorkoutDemo(QWidget):
         """Stop Unity application"""
         if self.unity_embedder is not None:
             self.unity_embedder.stop()
-        self.demo_container.setVisible(True)
     
     def _on_unity_started(self):
         """Called when Unity successfully embeds"""
@@ -277,7 +276,8 @@ class WorkoutDemo(QWidget):
         """Called when Unity stops - stop music and show Next Workout button"""
         print("WorkoutDemo: Unity app stopped")
         self._stop_music()
-        self.demo_container.setVisible(True)
+        # Mark workout as completed
+        self.workout_completed = True
         # Hide start button and show next workout button
         self.start_btn.hide()
         self.next_btn.show()
@@ -691,7 +691,8 @@ class WorkoutDemo(QWidget):
         self.muscles_label.setText(workout_name)
         self.instructions_text.setText(description or "No instructions available.")
 
-        # Reset button visibility when loading a new workout
+        # Reset button visibility and workout status when loading a new workout
+        self.workout_completed = False
         self.start_btn.show()
         self.next_btn.hide()
 
