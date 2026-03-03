@@ -201,19 +201,30 @@ class WorkoutDemo(QWidget):
             self.video_widget.setVisible(False)
 
     # ==================================================
-    # Unity Embedding (for Plank workout)
+    # Unity Embedding (for Plank and Jumping Jack workouts)
     # ==================================================
-    def _get_pose_avatar_exe(self) -> str:
-        """Get path to PoseToAvatar.exe"""
+    def _get_unity_exe_path(self, workout_name: str) -> str:
+        """Get path to the appropriate Unity EXE based on workout type"""
         app_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-        return os.path.join(app_root, "UnityBuild", "PoseToAvatar.exe")
-
-    def _init_unity_embedder(self) -> bool:
-        """Initialize the Unity embedder"""
-        if self.unity_embedder is not None:
-            return True  # Already initialized
         
-        exe_path = self._get_pose_avatar_exe()
+        workout_lower = workout_name.strip().lower() if workout_name else ""
+        
+        if "jumping" in workout_lower and "jack" in workout_lower:
+            # Jumping Jack workout uses JumpingJack.exe
+            return os.path.join(app_root, "JumpingJack_AR_EXE", "JumpingJack.exe")
+        elif "plank" in workout_lower:
+            # Plank workout uses PoseToAvatar.exe
+            return os.path.join(app_root, "UnityBuild", "PoseToAvatar.exe")
+        
+        return ""  # Unknown workout type
+
+    def _init_unity_embedder(self, exe_path: str) -> bool:
+        """Initialize the Unity embedder with the specified exe path"""
+        # Stop previous embedder if one exists
+        if self.unity_embedder is not None:
+            self.unity_embedder.stop()
+            self.unity_embedder = None
+        
         if not os.path.exists(exe_path):
             self.show_dialog("Error", f"Unity EXE not found: {exe_path}")
             return False
@@ -229,8 +240,15 @@ class WorkoutDemo(QWidget):
         return True
     
     def _launch_unity(self) -> bool:
-        """Launch Unity application"""
-        if not self._init_unity_embedder():
+        """Launch Unity application for the current workout"""
+        # Get the correct exe path based on current workout
+        exe_path = self._get_unity_exe_path(self.current_workout_name)
+        
+        if not exe_path:
+            self.show_dialog("Error", "Unknown workout type")
+            return False
+        
+        if not self._init_unity_embedder(exe_path):
             return False
         
         # Hide demo UI and launch Unity
@@ -238,7 +256,7 @@ class WorkoutDemo(QWidget):
         self._pause_preview()
         
         if self.unity_embedder.start():
-            print("WorkoutDemo: Unity launcher initiated")
+            print(f"WorkoutDemo: Unity launcher initiated for {self.current_workout_name}")
             # Start background music when Unity starts
             self._start_music()
             return True
@@ -830,19 +848,22 @@ class WorkoutDemo(QWidget):
         # pause preview BEFORE permission dialog
         self._pause_preview()
 
-        # Check if this is a plank workout
-        is_plank = (self.current_workout_name.strip().lower() == "plank" 
-                   if self.current_workout_name else False)
+        # Check if this is a Unity-based workout (Plank or Jumping Jack)
+        workout_lower = (self.current_workout_name.strip().lower() 
+                        if self.current_workout_name else "")
         
-        if is_plank:
-            # For plank: launch Unity app directly
+        is_plank = "plank" in workout_lower
+        is_jumping_jack = "jumping" in workout_lower and "jack" in workout_lower
+        
+        if is_plank or is_jumping_jack:
+            # For Unity-based workouts: launch Unity app directly
             if self._launch_unity():
-                print("Plank workout started with Unity")
+                print(f"{self.current_workout_name} workout started with Unity")
             else:
-                self.show_dialog("Error", "Failed to launch Unity for Plank workout")
+                self.show_dialog("Error", f"Failed to launch Unity for {self.current_workout_name} workout")
         else:
             # For other workouts: show coming soon message
-            self.show_dialog("Coming Soon", "Camera-based workouts coming soon!\nFor now, only Plank with Unity is available.")
+            self.show_dialog("Coming Soon", "Camera-based workouts coming soon!\nFor now, only Plank and Jumping Jack with Unity are available.")
 
     def go_back(self):
         self._pause_preview()
