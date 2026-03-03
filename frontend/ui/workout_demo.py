@@ -74,6 +74,7 @@ class WorkoutDemo(QWidget):
         self.muscles_label = None
         self.instructions_text = None
         self.start_btn = None
+        self.next_btn = None
 
         self.icon_play = None
         self.icon_pause = None
@@ -273,10 +274,13 @@ class WorkoutDemo(QWidget):
         print("WorkoutDemo: Unity app started and embedded")
     
     def _on_unity_stopped(self):
-        """Called when Unity stops - stop music and beeps"""
+        """Called when Unity stops - stop music and show Next Workout button"""
         print("WorkoutDemo: Unity app stopped")
         self._stop_music()
         self.demo_container.setVisible(True)
+        # Hide start button and show next workout button
+        self.start_btn.hide()
+        self.next_btn.show()
     
     def _on_unity_error(self, error_msg: str):
         """Called when Unity embedding fails"""
@@ -613,8 +617,34 @@ class WorkoutDemo(QWidget):
         """)
         self.start_btn.clicked.connect(self.start_workout)
 
+        # Next Workout button (hidden by default, shows after Unity stops)
+        self.next_btn = QPushButton("Next Workout")
+        self.next_btn.setMinimumSize(300, 50)
+        self.next_btn.setMaximumSize(400, 70)
+        self.next_btn.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        self.next_btn.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
+        self.next_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.next_btn.setStyleSheet("""
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                       stop:0 #10b981, stop:1 #059669);
+                color: white;
+                border-radius: 12px;
+                font-weight: bold;
+                font-size: 14px;
+                border: none;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                       stop:0 #059669, stop:1 #047857);
+            }
+        """)
+        self.next_btn.clicked.connect(self.go_back)
+        self.next_btn.hide()  # Hidden by default
+
         button_layout.addStretch()
         button_layout.addWidget(self.start_btn)
+        button_layout.addWidget(self.next_btn)
         button_layout.addStretch()
         main_layout.addLayout(button_layout)
 
@@ -660,6 +690,10 @@ class WorkoutDemo(QWidget):
         self.title_label.setText(workout_name)
         self.muscles_label.setText(workout_name)
         self.instructions_text.setText(description or "No instructions available.")
+
+        # Reset button visibility when loading a new workout
+        self.start_btn.show()
+        self.next_btn.hide()
 
         self.preview_asset(workout_name)
 
